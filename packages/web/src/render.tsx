@@ -107,10 +107,11 @@ function renderResultsTable(results: {
                     >
                       <div
                         style={{
-                          fontSize: "1.3em",
-                          fontWeight: "bold",
+                          flex: 1,
                           display: "flex",
                           alignItems: "center",
+                          fontSize: "1.3em",
+                          fontWeight: "bold",
                           gap: 4,
                         }}
                       >
@@ -127,6 +128,27 @@ function renderResultsTable(results: {
                       </div>
                       <div
                         style={{
+                          flex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {typeof value.duration === "number" && (
+                          <span
+                            style={{
+                              color: "#888",
+                              fontSize: "1.3em",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            {(value.duration / 1000).toFixed(2)}s
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          flex: 1,
                           display: "flex",
                           flexDirection: "column",
                           alignItems: "flex-end",
@@ -153,7 +175,7 @@ function renderResultsTable(results: {
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{
-                              color: "#333",
+                              color: "#0074d9",
                               textDecoration: "underline",
                               fontSize: "0.85em",
                             }}
