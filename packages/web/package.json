@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "web",
+  "scripts": {
+    "dev": "bun run --hot ./src/server.ts",
+    "build": "./script/build.ts"
+  },
+  "dependencies": {
+    "hono": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.16"
+  }
+}

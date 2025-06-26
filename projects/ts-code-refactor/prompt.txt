@@ -1,0 +1,1 @@
+Refactor index.ts to move the common code in fetchUsers and fetchPosts functions to a separate fetchData function.
