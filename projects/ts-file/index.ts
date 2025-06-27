@@ -1,5 +1,5 @@
-async function fetchData(url: string) {
-  const result = await fetch(url);
+export async function fetchUsers() {
+  const result = await fetch("https://example.com/users");
   const data: any = await result.json();
   if (data.error) {
     throw new Error(data.error);
@@ -7,10 +7,11 @@ async function fetchData(url: string) {
   return data;
 }
 
-export async function fetchUsers() {
-  return fetchData("https://example.com/users");
-}
-
 export async function fetchPosts() {
-  return fetchData("https://example.com/posts");
+  const result = await fetch("https://example.com/posts");
+  const data: any = await result.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
 }
