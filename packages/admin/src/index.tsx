@@ -1,9 +1,7 @@
+import path from "path";
 import { Hono } from "hono";
-import { Fragment } from "hono/jsx";
 import { jsxRenderer } from "hono/jsx-renderer";
 import { getTests, run } from "core/src/benchmark";
-import { readdir } from "fs/promises";
-import path from "path";
 
 const app = new Hono();
 app.use("*", jsxRenderer());
@@ -15,6 +13,7 @@ const MODELS = [
   "openai/gpt-4.1",
 ];
 const TESTS = await getTests();
+const css = await Bun.file(path.join(import.meta.dir, "index.css")).text();
 
 app.post("/run_benchmark", async (c) => {
   const { testName, model } = await c.req.json();
@@ -31,27 +30,32 @@ app.get("/", async (c) => {
     <html>
       <head>
         <title>Agents Benchmark</title>
+        <style>{css}</style>
       </head>
       <body>
-        <h1>Run Benchmark</h1>
         <form id="benchmark-form">
-          <label htmlFor="model">Model:</label>
-          <select id="model" name="model">
-            {MODELS.map((model) => (
-              <option value={model}>{model}</option>
-            ))}
-          </select>
-          <br />
-          <label htmlFor="test">Test:</label>
-          <select id="test" name="test">
-            {TESTS.map((test) => (
-              <option value={test}>{test}</option>
-            ))}
-          </select>
-          <br />
-          <button type="submit">Run</button>
+          <h1>Run Benchmark</h1>
+          <div className="form-row">
+            <label htmlFor="model">Model:</label>
+            <select id="model" name="model">
+              {MODELS.map((model) => (
+                <option value={model}>{model}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-row">
+            <label htmlFor="test">Test:</label>
+            <select id="test" name="test">
+              {TESTS.map((test) => (
+                <option value={test}>{test}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-row">
+            <button type="submit">Run</button>
+          </div>
+          <pre id="result" style={{ display: "none" }}></pre>
         </form>
-        <pre id="result"></pre>
         <script
           dangerouslySetInnerHTML={{
             __html: `document.getElementById('benchmark-form').addEventListener('submit', async function(e) {
@@ -59,6 +63,7 @@ app.get("/", async (c) => {
               const model = document.getElementById('model').value;
               const testName = document.getElementById('test').value;
               const resultPre = document.getElementById('result');
+              resultPre.style.display = 'block';
               resultPre.textContent = 'Running...';
               try {
                 const res = await fetch('/run_benchmark', {
@@ -71,7 +76,11 @@ app.get("/", async (c) => {
               } catch (err) {
                 resultPre.textContent = 'Error: ' + err;
               }
-            });`,
+            });
+            // Hide result if empty on page load
+            const resultPre = document.getElementById('result');
+            if (!resultPre.textContent.trim()) resultPre.style.display = 'none';
+          `,
           }}
         />
       </body>
