@@ -1,0 +1,54 @@
+diff -rN /Users/frank/Sites/agents-benchmark/tests/notes-app.delete-attachment/expected/packages/functions/src/delete.ts /Users/frank/Sites/agents-benchmark/projects/notes-app/packages/functions/src/delete.ts
+11,15c11
+<   const userId = event.requestContext.authorizer?.iam.cognitoIdentity.identityId;
+<   const noteId = event?.pathParameters?.id;
+< 
+<   // First, get the note to check if it has an attachment
+<   const getParams = {
+---
+>   const params = {
+18,19c14,15
+<       userId,
+<       noteId,
+---
+>       userId: event.requestContext.authorizer?.iam.cognitoIdentity.identityId,
+>       noteId: event?.pathParameters?.id, // The id of the note from the path
+23c19,20
+<   const result = await dynamoDb.send(new GetCommand(getParams));
+---
+>   // First, get the note to check if it has an attachment
+>   const result = await dynamoDb.send(new GetCommand(params));
+25,31c22,24
+<   if (!result.Item) {
+<     throw new Error("Item not found.");
+<   }
+< 
+<   // If the note has an attachment, delete it from S3
+<   if (result.Item.attachment) {
+<     const deleteObjectParams = {
+---
+>   if (result.Item && result.Item.attachment) {
+>     // Delete the attachment from S3
+>     const deleteParams = {
+33c26
+<       Key: `private/${userId}/${result.Item.attachment}`,
+---
+>       Key: `private/${event.requestContext.authorizer?.iam.cognitoIdentity.identityId}/${result.Item.attachment}`,
+35,36c28,29
+< 
+<     await s3.send(new DeleteObjectCommand(deleteObjectParams));
+---
+>     
+>     await s3.send(new DeleteObjectCommand(deleteParams));
+40,48c33
+<   const deleteParams = {
+<     TableName: Resource.Notes.name,
+<     Key: {
+<       userId,
+<       noteId,
+<     },
+<   };
+< 
+<   await dynamoDb.send(new DeleteCommand(deleteParams));
+---
+>   await dynamoDb.send(new DeleteCommand(params));
