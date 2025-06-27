@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { Auth } from "aws-amplify";
 import Nav from "react-bootstrap/Nav";
-import { onError } from "./lib/errorLib.ts";
+import { onError } from "./lib/errorLib";
 import Navbar from "react-bootstrap/Navbar";
 import { useNavigate } from "react-router-dom";
 import { LinkContainer } from "react-router-bootstrap";
-import { AppContext, AppContextType } from "./lib/contextLib.ts";
+import { AppContext, AppContextType } from "./lib/contextLib";
 import Routes from "./Routes.tsx";
 import "./App.css";
 

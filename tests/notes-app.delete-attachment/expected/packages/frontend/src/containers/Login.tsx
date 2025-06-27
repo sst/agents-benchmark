@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { Auth } from "aws-amplify";
 import Form from "react-bootstrap/Form";
 import Stack from "react-bootstrap/Stack";
-import { onError } from "../lib/errorLib.ts";
-import { useFormFields } from "../lib/hooksLib.ts";
-import { useAppContext } from "../lib/contextLib.ts";
+import { onError } from "../lib/errorLib";
+import { useFormFields } from "../lib/hooksLib";
+import { useAppContext } from "../lib/contextLib";
 import LoaderButton from "../components/LoaderButton.tsx";
 import "./Login.css";
 

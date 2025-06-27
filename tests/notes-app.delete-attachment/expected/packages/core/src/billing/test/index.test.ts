@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { Billing } from "..";
+import { Billing } from "../";
 
 test("Lowest tier", () => {
   const storage = 10;
