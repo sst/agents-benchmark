@@ -1,0 +1,5 @@
+diff /Users/frank/Sites/agents-benchmark/tests/ts-file.refactor/expected/index.ts /Users/frank/Sites/agents-benchmark/projects/ts-file/index.ts
+1c1
+< async function fetchData(url: string) {
+---
+> export async function fetchData(url: string) {

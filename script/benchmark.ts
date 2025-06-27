@@ -8,9 +8,9 @@ import type { Result } from "core";
 
 const MODELS = [
   "anthropic/claude-sonnet-4-20250514",
-  //"google/gemini-2.5-pro",
-  //"openai/codex-mini-latest",
-  //"openai/gpt-4.1",
+  "openrouter/google/gemini-2.5-pro",
+  "openai/codex-mini-latest",
+  "openai/gpt-4.1",
 ];
 const TEST_ID = new Date().toISOString();
 const PROJECTS_PATH = path.join(import.meta.dir, "..", "projects");
@@ -42,7 +42,7 @@ for await (const test of new Bun.Glob("**/prompt.txt").scan({
 
     // Store patch
     const patchPath = path.join(resultPath, "diff.patch");
-    const patchCmd = await $`diff ${projectPath} ${expectedPath}`
+    const patchCmd = await $`diff ${expectedPath} ${projectPath}`
       .nothrow()
       .quiet();
     if (patchCmd.exitCode > 1) throw new Error(patchCmd.text());
