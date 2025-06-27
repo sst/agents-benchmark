@@ -150,6 +150,26 @@ function renderResultsTable(results: {
                         style={{
                           flex: 1,
                           display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {typeof value.cost === "number" && (
+                          <span
+                            style={{
+                              color: "#0074d9",
+                              fontSize: "1.3em",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            ${value.cost.toFixed(4)}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          flex: 1,
+                          display: "flex",
                           flexDirection: "column",
                           alignItems: "flex-end",
                           gap: 2,
