@@ -155,9 +155,9 @@ function renderResultsTable(results: {
                           gap: 2,
                         }}
                       >
-                        {value.openCode.share && (
+                        {value.opencode.share && (
                           <a
-                            href={`https://opencode.ai/s/${value.openCode.share}`}
+                            href={`https://opencode.ai/s/${value.opencode.share}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{

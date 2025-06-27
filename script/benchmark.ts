@@ -8,93 +8,108 @@ import type { Result } from "core";
 
 const MODELS = [
   "anthropic/claude-sonnet-4-20250514",
-  //"anthropic/claude-3-5-sonnet-20240620",
-  //"anthropic/claude-3-haiku-20240307",
-  //"openai/gpt-4o-mini",
   //"google/gemini-2.5-pro",
+  //"openai/codex-mini-latest",
+  //"openai/gpt-4.1",
 ];
-const testID = new Date().toISOString();
-const projectsPath = path.join(import.meta.dir, "..", "projects");
-const resultsPath = path.join(import.meta.dir, "..", "results", testID);
+const TEST_ID = new Date().toISOString();
+const PROJECTS_PATH = path.join(import.meta.dir, "..", "projects");
+const TESTS_PATH = path.join(import.meta.dir, "..", "tests");
+const RESULTS_PATH = path.join(import.meta.dir, "..", "results", TEST_ID);
 
-for await (const project of new Bun.Glob("*").scan({
-  cwd: projectsPath,
+for await (const test of new Bun.Glob("**/prompt.txt").scan({
+  cwd: TESTS_PATH,
   absolute: false,
   onlyFiles: false,
 })) {
-  const sourcePath = path.join(projectsPath, project, "source");
-  const expectedPatchPath = path.join(projectsPath, project, "expected.patch");
-  const promptPath = path.join(projectsPath, project, "prompt.txt");
+  // ie. test is "ts-file.refactor/prompt.txt"
+  const testName = test.split(path.sep)[0]!; // ie. ts-file.refactor
+  const project = testName.split(".")[0]!; // ie. ts-file
+
+  const projectPath = path.join(PROJECTS_PATH, project);
+  const expectedPath = path.join(TESTS_PATH, testName, "expected");
+  const promptPath = path.join(TESTS_PATH, testName, "prompt.txt");
   const prompt = await Bun.file(promptPath).text();
 
   for (const model of MODELS) {
-    const resultPath = path.join(resultsPath, project, model);
+    const resultPath = path.join(RESULTS_PATH, testName, model);
     await fs.mkdir(resultPath, { recursive: true });
 
     // Run test
-    await $`opencode run ${prompt} -m ${model} --share`.cwd(sourcePath);
+    const tsBefore = performance.now();
+    await $`opencode run ${prompt} -m ${model} --share`.cwd(projectPath);
+    const duration = performance.now() - tsBefore;
 
     // Store patch
     const patchPath = path.join(resultPath, "diff.patch");
-    const patch = await $`git diff ${sourcePath}`.text();
+    const patch = await $`diff ${projectPath} ${expectedPath}`.text();
     await Bun.write(patchPath, patch);
 
     // Store test info
-    const added =
-      await $`bash -c "diff <(grep -v '^index ' ${patchPath}) <(grep -v '^index ' ${expectedPatchPath}) | grep -E '^<' | wc -l"`
-        .nothrow()
-        .quiet();
-    if (added.exitCode > 1) throw new Error(added.stderr.toString("utf-8"));
-    const removed =
-      await $`bash -c "diff <(grep -v '^index ' ${patchPath}) <(grep -v '^index ' ${expectedPatchPath}) | grep -E '^>' | wc -l"`
-        .nothrow()
-        .quiet();
-    if (removed.exitCode > 1) throw new Error(removed.stderr.toString("utf-8"));
-    const sessionInfo = await getSessionInfo();
+    const session = await getSession();
+    console.log(session);
     await Bun.write(
       path.join(resultPath, "summary.json"),
       JSON.stringify({
-        openCode: {
-          share: sessionInfo.share.url.split("/").pop(),
-          version: sessionInfo.version,
+        opencode: {
+          share: session.info.share.url.split("/").pop(),
+          version: session.info.version,
         },
-        duration: sessionInfo.time.updated - sessionInfo.time.created,
+        duration: Math.round(duration),
+        cost: session.cost,
         gitRef: (await $`git rev-parse HEAD`.text()).trim(),
-        added: parseInt(added.text().trim()),
-        removed: parseInt(removed.text().trim()),
+        added: patch.split("\n").filter((line) => line.startsWith("<")).length,
+        removed: patch.split("\n").filter((line) => line.startsWith(">"))
+          .length,
       } satisfies Result)
     );
 
     // Reset source
-    await $`git checkout ${sourcePath}`;
+    await $`git checkout ${projectPath}`;
   }
 }
 
-async function getSessionInfo() {
+async function getSession() {
   const projectDir = path
     .resolve(import.meta.dir, "..")
     .split(path.sep)
     .filter(Boolean)
     .join("-");
+  const sessionPath = path.join(
+    os.homedir(),
+    ".local",
+    "share",
+    "opencode",
+    "project",
+    projectDir,
+    "storage",
+    "session"
+  );
+
+  // Get session info
   const sessions = await Array.fromAsync(
     new Bun.Glob("*").scan({
-      cwd: path.join(
-        os.homedir(),
-        ".local",
-        "share",
-        "opencode",
-        "project",
-        projectDir,
-        "storage",
-        "session",
-        "info"
-      ),
+      cwd: path.join(sessionPath, "info"),
       absolute: true,
     })
   );
   if (sessions.length === 0)
     throw new Error("Session not found in ~/.local/share");
   const session = sessions.sort()[0]!;
+  const sessionID = session.split(path.sep).pop()!.split(".")[0]!;
 
-  return await Bun.file(session).json();
+  // Get session messages and aggregate cost
+  let cost = 0;
+  for await (const message of new Bun.Glob("*").scan({
+    cwd: path.join(sessionPath, "message", sessionID),
+    absolute: true,
+  })) {
+    const json = await Bun.file(message).json();
+    cost += json.metadata?.assistant?.cost ?? 0;
+  }
+
+  return {
+    info: await Bun.file(session).json(),
+    cost,
+  };
 }

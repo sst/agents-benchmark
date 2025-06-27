@@ -1,8 +1,9 @@
 export interface Result {
-  openCode: {
+  opencode: {
     share: string;
     version: string;
   };
+  cost: number;
   duration: number;
   gitRef: string;
   added: number;
