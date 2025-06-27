@@ -42,7 +42,11 @@ for await (const test of new Bun.Glob("**/prompt.txt").scan({
 
     // Store patch
     const patchPath = path.join(resultPath, "diff.patch");
-    const patch = await $`diff ${projectPath} ${expectedPath}`.text();
+    const patchCmd = await $`diff ${projectPath} ${expectedPath}`
+      .nothrow()
+      .quiet();
+    if (patchCmd.exitCode > 1) throw new Error(patchCmd.text());
+    const patch = patchCmd.text();
     await Bun.write(patchPath, patch);
 
     // Store test info
