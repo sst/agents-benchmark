@@ -13,6 +13,9 @@
       "@tsconfig/bun": "^1.0.8"
     }
   },
+  "scripts": {
+    "dev": "bun run --cwd packages/admin dev"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

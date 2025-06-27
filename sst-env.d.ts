@@ -5,10 +5,6 @@
 
 declare module "sst" {
   export interface Resource {
-    "MyWorker": {
-      "type": "sst.cloudflare.StaticSite"
-      "url": string
-    }
   }
 }
 /// <reference path="sst-env.d.ts" />

@@ -1,10 +1,16 @@
 {
-  "name": "core",
+  "name": "admin",
   "version": "0.0.0",
   "$schema": "https://json.schemastore.org/package.json",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./src/index.tsx",
   "devDependencies": {
     "@tsconfig/bun": "catalog:"
+  },
+  "dependencies": {
+    "hono": "^4.8.3"
+  },
+  "scripts": {
+    "dev": "bun --hot src/index.tsx"
   }
 }
