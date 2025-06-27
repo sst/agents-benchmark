@@ -1,0 +1,19 @@
+# dependencies
+node_modules
+
+# sst
+.sst
+
+# opennext
+.open-next
+
+# misc
+.DS_Store
+
+# local env files
+.env*.local
+
+# editor files
+.vim
+
+.env

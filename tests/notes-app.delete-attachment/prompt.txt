@@ -1,0 +1,1 @@
+Currently when users delete a note, the item in the database is deleted but the attachment is not deleted from S3. Update the code to delete the attachment from S3 if the note has an attachment.
