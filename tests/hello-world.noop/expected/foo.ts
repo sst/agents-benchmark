@@ -1,1 +1,1 @@
-console.log("foo-expected");
+console.log("foo");

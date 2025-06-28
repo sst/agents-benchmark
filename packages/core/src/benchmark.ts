@@ -4,7 +4,6 @@ import path from "path";
 import { $ } from "bun";
 import type { Result } from "./schema";
 
-const TEST_ID = new Date().toISOString();
 const ROOT_PATH = path.join(import.meta.dir, "..", "..", "..");
 const PROJECTS_PATH = path.join(ROOT_PATH, "projects");
 const TESTS_PATH = path.join(ROOT_PATH, "tests");
@@ -37,6 +36,8 @@ export async function getResults() {
 }
 
 export async function run(testName: string, model: string) {
+  const TEST_ID = new Date().toISOString();
+
   const project = testName.split(".")[0]!; // ie. ts-file
   const projectPath = path.join(PROJECTS_PATH, project);
   const expectedPath = path.join(TESTS_PATH, testName, "expected");
@@ -165,7 +166,7 @@ function parsePatch(patch: string) {
     if (line.startsWith("diff -r ")) {
       if (currentFile) {
         files.push({
-          file: currentFile,
+          file: path.relative(PROJECTS_PATH, currentFile),
           added: addedLines,
           removed: removedLines,
         });
@@ -175,15 +176,15 @@ function parsePatch(patch: string) {
       currentFile = parts[parts.length - 1] ?? "";
       addedLines = 0;
       removedLines = 0;
-    } else if (line.startsWith("+")) {
+    } else if (line.startsWith("< ")) {
       addedLines++;
-    } else if (line.startsWith("-")) {
+    } else if (line.startsWith("> ")) {
       removedLines++;
     }
   }
   if (currentFile) {
     files.push({
-      file: currentFile,
+      file: path.relative(PROJECTS_PATH, currentFile),
       added: addedLines,
       removed: removedLines,
     });

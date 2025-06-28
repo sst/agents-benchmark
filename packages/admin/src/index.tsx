@@ -12,9 +12,6 @@ const MODELS = [
   "openai/codex-mini-latest",
   "openai/gpt-4.1",
 ];
-const TESTS = await getTests();
-const RESULTS = await getResults();
-console.log(RESULTS);
 const css = await Bun.file(path.join(import.meta.dir, "index.css")).text();
 
 app.post("/run_benchmark", async (c) => {
@@ -28,6 +25,9 @@ app.post("/run_benchmark", async (c) => {
 });
 
 app.get("/", async (c) => {
+  const TESTS = await getTests();
+  const RESULTS = await getResults();
+  console.log(RESULTS);
   return c.render(
     <html>
       <head>
@@ -76,13 +76,14 @@ app.get("/", async (c) => {
               <tr>
                 <th>Run</th>
                 <th>Timestamp</th>
-                <th>Version</th>
+                <th>Test</th>
                 <th>Model</th>
                 <th>Duration</th>
                 <th>Cost</th>
                 <th>I/O Tokens</th>
                 <th>Cache R/W</th>
-                <th>Diff</th>
+                <th>Diffs</th>
+                <th>Version</th>
               </tr>
             </thead>
             <tbody id="results-tbody">
@@ -90,7 +91,7 @@ app.get("/", async (c) => {
                 <tr>
                   <td>#{i + 1}</td>
                   <td>{r.timestamp}</td>
-                  <td>{r.summary.opencode.version}</td>
+                  <td>{r.summary.test}</td>
                   <td>{r.summary.model}</td>
                   <td>{(r.summary.duration / 1000).toFixed(0)}s</td>
                   <td>${r.summary.cost.toFixed(4)}</td>
@@ -102,11 +103,28 @@ app.get("/", async (c) => {
                     {r.summary.tokens.cache_write}
                   </td>
                   <td>
-                    <span className="diff-added">+{r.summary.added}</span>
+                    {r.summary.diffs.length > 0 ? (
+                      r.summary.diffs.map((diff: any) => (
+                        <div
+                          key={diff.file}
+                          style={{
+                            display: "flex",
+                            gap: "0.5em",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span style={{ fontFamily: "monospace" }}>
+                            {diff.file}
+                          </span>
+                          <span className="diff-added">+{diff.added}</span>
+                          <span className="diff-removed">-{diff.removed}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span style={{ color: "#888" }}>No diff</span>
+                    )}
                   </td>
-                  <td>
-                    <span className="diff-removed">-{r.summary.removed}</span>
-                  </td>
+                  <td>{r.summary.opencode.version}</td>
                 </tr>
               ))}
             </tbody>

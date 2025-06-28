@@ -1,1 +1,1 @@
-console.log("bar-expected");
+console.log("bar");
