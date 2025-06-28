@@ -8,18 +8,32 @@ const TEST_ID = new Date().toISOString();
 const ROOT_PATH = path.join(import.meta.dir, "..", "..", "..");
 const PROJECTS_PATH = path.join(ROOT_PATH, "projects");
 const TESTS_PATH = path.join(ROOT_PATH, "tests");
-const RESULTS_PATH = path.join(ROOT_PATH, "results", TEST_ID);
+const RESULTS_PATH = path.join(ROOT_PATH, "results");
 
 export async function getTests() {
   return (
     await Array.fromAsync(
       new Bun.Glob("**/prompt.txt").scan({
         cwd: TESTS_PATH,
-        onlyFiles: false,
         absolute: false,
       })
     )
   ).map((test) => test.split(path.sep)[0]!);
+}
+
+export async function getResults() {
+  const results = [];
+  for await (const summaryPath of new Bun.Glob("**/summary.json").scan({
+    cwd: RESULTS_PATH,
+    absolute: false,
+  })) {
+    const summary = await Bun.file(path.join(RESULTS_PATH, summaryPath)).json();
+    results.push({
+      timestamp: summaryPath.split(path.sep)[0]!,
+      summary,
+    });
+  }
+  return results.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
 
 export async function run(testName: string, model: string) {
@@ -52,6 +66,7 @@ export async function run(testName: string, model: string) {
     .quiet();
   if (patchCmd.exitCode > 1) throw new Error(patchCmd.text());
   const patch = patchCmd.text();
+  const diffs = parsePatch(patch);
 
   // Store test info
   const session = await getSession();
@@ -67,15 +82,14 @@ export async function run(testName: string, model: string) {
     cost: session.cost,
     tokens: session.tokens,
     gitRef: (await $`git rev-parse HEAD`.text()).trim(),
-    added: patch.split("\n").filter((line) => line.startsWith("<")).length,
-    removed: patch.split("\n").filter((line) => line.startsWith(">")).length,
+    diffs,
   } satisfies Result;
 
   // Store results
-  await fs.mkdir(RESULTS_PATH, { recursive: true });
-  await Bun.write(path.join(RESULTS_PATH, "diff.patch"), patch);
+  await fs.mkdir(path.join(RESULTS_PATH, TEST_ID), { recursive: true });
+  await Bun.write(path.join(RESULTS_PATH, TEST_ID, "diff.patch"), patch);
   await Bun.write(
-    path.join(RESULTS_PATH, "summary.json"),
+    path.join(RESULTS_PATH, TEST_ID, "summary.json"),
     JSON.stringify(summary)
   );
 }
@@ -137,4 +151,42 @@ async function getSession() {
 
 function printHeader(text: string) {
   console.log(`=== ${text} ===`);
+}
+
+function parsePatch(patch: string) {
+  const files = [];
+  let currentFile: string | null = null;
+  let addedLines: number = 0;
+  let removedLines: number = 0;
+  const lines = patch.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    // Detect start of a new file diff (diff -r ... <file1> <file2>)
+    if (line.startsWith("diff -r ")) {
+      if (currentFile) {
+        files.push({
+          file: currentFile,
+          added: addedLines,
+          removed: removedLines,
+        });
+      }
+      // Try to extract the file path (the second file in the diff line)
+      const parts = line.split(" ");
+      currentFile = parts[parts.length - 1] ?? "";
+      addedLines = 0;
+      removedLines = 0;
+    } else if (line.startsWith("+")) {
+      addedLines++;
+    } else if (line.startsWith("-")) {
+      removedLines++;
+    }
+  }
+  if (currentFile) {
+    files.push({
+      file: currentFile,
+      added: addedLines,
+      removed: removedLines,
+    });
+  }
+  return files;
 }

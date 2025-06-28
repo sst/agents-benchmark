@@ -69,3 +69,20 @@ pre#result {
   margin: 0.75rem 0 0 0;
   border: 1px solid #e0e0e0;
 }
+
+th,
+td {
+  white-space: nowrap;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.diff-added {
+  color: #228c22;
+  font-weight: bold;
+}
+
+.diff-removed {
+  color: #c00;
+  font-weight: bold;
+}

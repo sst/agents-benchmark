@@ -1,7 +1,7 @@
 import path from "path";
 import { Hono } from "hono";
 import { jsxRenderer } from "hono/jsx-renderer";
-import { getTests, run } from "core/src/benchmark";
+import { getResults, getTests, run } from "core/src/benchmark";
 
 const app = new Hono();
 app.use("*", jsxRenderer());
@@ -13,6 +13,8 @@ const MODELS = [
   "openai/gpt-4.1",
 ];
 const TESTS = await getTests();
+const RESULTS = await getResults();
+console.log(RESULTS);
 const css = await Bun.file(path.join(import.meta.dir, "index.css")).text();
 
 app.post("/run_benchmark", async (c) => {
@@ -33,29 +35,83 @@ app.get("/", async (c) => {
         <style>{css}</style>
       </head>
       <body>
-        <form id="benchmark-form">
+        <div>
           <h1>Run Benchmark</h1>
-          <div className="form-row">
-            <label htmlFor="model">Model:</label>
-            <select id="model" name="model">
-              {MODELS.map((model) => (
-                <option value={model}>{model}</option>
+          <form id="benchmark-form">
+            <div className="form-row">
+              <label htmlFor="model">Model:</label>
+              <select id="model" name="model">
+                {MODELS.map((model) => (
+                  <option value={model}>{model}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-row">
+              <label htmlFor="test">Test:</label>
+              <select id="test" name="test">
+                {TESTS.map((test) => (
+                  <option value={test}>{test}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-row">
+              <button type="submit">Run</button>
+            </div>
+            <pre id="result" style={{ display: "none" }}></pre>
+          </form>
+          <h1>Results</h1>
+          <table
+            id="results-table"
+            style={{
+              width: "100%",
+              maxWidth: 400,
+              marginTop: "1.5rem",
+              borderCollapse: "collapse",
+              background: "#fff",
+              borderRadius: 8,
+              boxShadow: "0 2px 8px #0001",
+            }}
+          >
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Timestamp</th>
+                <th>Version</th>
+                <th>Model</th>
+                <th>Duration</th>
+                <th>Cost</th>
+                <th>I/O Tokens</th>
+                <th>Cache R/W</th>
+                <th>Diff</th>
+              </tr>
+            </thead>
+            <tbody id="results-tbody">
+              {RESULTS.map((r, i) => (
+                <tr>
+                  <td>#{i + 1}</td>
+                  <td>{r.timestamp}</td>
+                  <td>{r.summary.opencode.version}</td>
+                  <td>{r.summary.model}</td>
+                  <td>{(r.summary.duration / 1000).toFixed(0)}s</td>
+                  <td>${r.summary.cost.toFixed(4)}</td>
+                  <td>
+                    {r.summary.tokens.input} / {r.summary.tokens.output}
+                  </td>
+                  <td>
+                    {r.summary.tokens.cache_read} /{" "}
+                    {r.summary.tokens.cache_write}
+                  </td>
+                  <td>
+                    <span className="diff-added">+{r.summary.added}</span>
+                  </td>
+                  <td>
+                    <span className="diff-removed">-{r.summary.removed}</span>
+                  </td>
+                </tr>
               ))}
-            </select>
-          </div>
-          <div className="form-row">
-            <label htmlFor="test">Test:</label>
-            <select id="test" name="test">
-              {TESTS.map((test) => (
-                <option value={test}>{test}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-row">
-            <button type="submit">Run</button>
-          </div>
-          <pre id="result" style={{ display: "none" }}></pre>
-        </form>
+            </tbody>
+          </table>
+        </div>
         <script
           dangerouslySetInnerHTML={{
             __html: `document.getElementById('benchmark-form').addEventListener('submit', async function(e) {
@@ -80,7 +136,7 @@ app.get("/", async (c) => {
             // Hide result if empty on page load
             const resultPre = document.getElementById('result');
             if (!resultPre.textContent.trim()) resultPre.style.display = 'none';
-          `,
+            `,
           }}
         />
       </body>

@@ -14,6 +14,9 @@ export interface Result {
   cost: number;
   duration: number;
   gitRef: string;
-  added: number;
-  removed: number;
+  diffs: {
+    file: string;
+    added: number;
+    removed: number;
+  }[];
 }
