@@ -6,6 +6,7 @@
     "build": "./script/build.ts"
   },
   "dependencies": {
+    "diff2html": "^3.4.51",
     "hono": "^4.8.0"
   },
   "devDependencies": {

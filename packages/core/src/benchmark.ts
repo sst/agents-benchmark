@@ -26,10 +26,77 @@ export async function getResults() {
     cwd: RESULTS_PATH,
     absolute: false,
   })) {
-    const summary = await Bun.file(path.join(RESULTS_PATH, summaryPath)).json();
+    const summary = (await Bun.file(
+      path.join(RESULTS_PATH, summaryPath)
+    ).json()) as Result;
+    const patchPath = path.join(RESULTS_PATH, summaryPath, "..", "diff.patch");
+
+    const testName = summary.test;
+    const project = testName.split(".")[0]!; // ie. ts-file
+    const projectPath = path.join(PROJECTS_PATH, project);
+    const expectedPath = path.join(TESTS_PATH, testName, "expected");
+
+    await $`git checkout ${expectedPath}`;
+
+    // Generate source vs expected patch
+    const expectedDiff = await diff(projectPath, expectedPath);
+    const expectedPatches = (await parsePatch(expectedDiff)).map((patch) => ({
+      ...patch,
+      file: patch.file.split(path.sep).slice(3).join(path.sep),
+    }));
+
+    // Generate source vs actual patch
+    const search = path.relative(ROOT_PATH, projectPath).replace(/\//g, "\\/");
+    const replace = path
+      .relative(ROOT_PATH, expectedPath)
+      .replace(/\//g, "\\/");
+    await $`cat ${patchPath} | sed 's/${search}/${replace}/g' | patch`.cwd(
+      ROOT_PATH
+    );
+    const actualDiff = await diff(projectPath, expectedPath);
+    const actualPatches = (await parsePatch(actualDiff)).map((patch) => ({
+      ...patch,
+      file: patch.file.split(path.sep).slice(3).join(path.sep),
+    }));
+
+    await $`git checkout ${expectedPath}`;
+
+    // For each diff, load
+    // - original source
+    // - expected diff
+    // - actual diff
+    const files = [
+      ...new Set(
+        [...expectedPatches, ...actualPatches].map((diff) => diff.file)
+      ),
+    ];
+    const patchInfoByFile: Record<
+      string,
+      { source: string; expectedPatch?: string; actualPatch?: string }
+    > = {};
+    await Promise.all(
+      files.map(async (file) => {
+        patchInfoByFile[file] = {
+          source: await Bun.file(path.join(projectPath, file)).text(),
+          actualPatch: actualPatches
+            .find((patch) => patch.file === file)
+            ?.lines?.join("\n"),
+          expectedPatch: expectedPatches
+            .find((patch) => patch.file === file)
+            ?.lines?.join("\n"),
+        };
+      })
+    );
+
     results.push({
       timestamp: summaryPath.split(path.sep)[0]!,
-      summary,
+      summary: {
+        ...summary,
+        diffs: summary.diffs.map((diff) => ({
+          ...diff,
+          ...patchInfoByFile[diff.file]!,
+        })),
+      },
     });
   }
   return results.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
@@ -40,34 +107,28 @@ export async function run(testName: string, model: string) {
 
   const project = testName.split(".")[0]!; // ie. ts-file
   const projectPath = path.join(PROJECTS_PATH, project);
-  const expectedPath = path.join(TESTS_PATH, testName, "expected");
-  const promptPath = path.join(TESTS_PATH, testName, "prompt.txt");
+  const testPath = path.join(TESTS_PATH, testName);
 
   // Reset source
   printHeader("Git reset source");
   await $`git checkout ${projectPath}`;
 
   // Run setup script
-  if (await Bun.file(path.join(projectPath, "setup.ts")).exists()) {
+  if (await Bun.file(path.join(projectPath, "package.json")).exists()) {
     printHeader("Run setup script");
-    await $`bun ${path.join(projectPath, "setup.ts")}`;
+    await $`bun i`.cwd(projectPath);
   }
 
   // Run test
   printHeader("Run test");
-  const prompt = await Bun.file(promptPath).text();
+  const prompt = await Bun.file(path.join(testPath, "prompt.txt")).text();
   const tsBefore = performance.now();
   await $`opencode run ${prompt} -m ${model} --share`.cwd(projectPath);
   const duration = performance.now() - tsBefore;
   console.log(`Duration: ${duration}ms`);
 
-  // Store patch
-  const patchCmd = await $`diff -r ${expectedPath} ${projectPath}`
-    .nothrow()
-    .quiet();
-  if (patchCmd.exitCode > 1) throw new Error(patchCmd.text());
-  const patch = patchCmd.text();
-  const diffs = parsePatch(patch);
+  // Generate patch
+  const patch = await diff(path.join(testPath, "expected"), projectPath);
 
   // Store test info
   const session = await getSession();
@@ -76,14 +137,22 @@ export async function run(testName: string, model: string) {
     test: testName,
     model,
     opencode: {
-      share: session.info.share.url.split("/").pop(),
+      share: session.info.share?.url?.split("/")?.pop(),
       version: session.info.version,
     },
     duration: Math.round(duration),
     cost: session.cost,
     tokens: session.tokens,
     gitRef: (await $`git rev-parse HEAD`.text()).trim(),
-    diffs,
+    diffs: (await parsePatch(patch)).map((diff) => {
+      return {
+        // transform from "projects/hello-world/bar.ts"
+        // to "bar.ts"
+        file: diff.file.split(path.sep).slice(2).join(path.sep),
+        added: diff.lines.filter((line) => line.match(/^\+[^+]/)).length,
+        removed: diff.lines.filter((line) => line.match(/^-[^-]/)).length,
+      };
+    }),
   } satisfies Result;
 
   // Store results
@@ -154,39 +223,59 @@ function printHeader(text: string) {
   console.log(`=== ${text} ===`);
 }
 
-function parsePatch(patch: string) {
+/**
+ * @example
+ * Input:
+ * ```
+ *   diff("tests/hello-world.noop/expected/foo.ts", "projects/hello-world/foo.ts")
+ * ```
+ * Output:
+ * ```patch
+ *   diff -ur tests/hello-world.noop/expected/foo.ts projects/hello-world/foo.ts
+ *   --- tests/hello-world.noop/expected/foo.ts	2025-06-29 02:35:37
+ *   +++ projects/hello-world/foo.ts	2025-06-27 23:56:28
+ *   @@ -1 +1 @@
+ *   -console.log("expected");
+ *   +console.log("actual");
+ * ```
+ */
+async function diff(expected: string, actual: string) {
+  const expectedRelPath = path.relative(ROOT_PATH, expected);
+  const actualRelPath = path.relative(ROOT_PATH, actual);
+  const patchCmd = await $`diff -ur ${expectedRelPath} ${actualRelPath}`
+    .cwd(ROOT_PATH)
+    .nothrow()
+    .quiet();
+  if (patchCmd.exitCode > 1) throw new Error(patchCmd.stderr.toString());
+  return patchCmd.text();
+}
+async function parsePatch(patch: string) {
   const files = [];
   let currentFile: string | null = null;
-  let addedLines: number = 0;
-  let removedLines: number = 0;
+  let currentLines: string[] = [];
   const lines = patch.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
     // Detect start of a new file diff (diff -r ... <file1> <file2>)
-    if (line.startsWith("diff -r ")) {
+    if (line.startsWith("diff ")) {
       if (currentFile) {
         files.push({
-          file: path.relative(PROJECTS_PATH, currentFile),
-          added: addedLines,
-          removed: removedLines,
+          file: currentFile,
+          lines: currentLines,
         });
       }
       // Try to extract the file path (the second file in the diff line)
       const parts = line.split(" ");
       currentFile = parts[parts.length - 1] ?? "";
-      addedLines = 0;
-      removedLines = 0;
-    } else if (line.startsWith("< ")) {
-      addedLines++;
-    } else if (line.startsWith("> ")) {
-      removedLines++;
+      currentLines = [];
     }
+    currentLines.push(line);
   }
+
   if (currentFile) {
     files.push({
-      file: path.relative(PROJECTS_PATH, currentFile),
-      added: addedLines,
-      removed: removedLines,
+      file: currentFile,
+      lines: currentLines,
     });
   }
   return files;
